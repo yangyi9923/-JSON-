@@ -1,0 +1,60 @@
+import json
+from Crypto.Cipher import AES
+from Crypto.Protocol.KDF import scrypt
+import binascii
+
+# 加密的 JSON 数据
+encrypted_data = {
+    "address": "b2c84e7dbf3562d5c1de4535efa724b5cc0d213e",
+    "crypto": {
+        "cipher": "aes-128-ctr",
+        "ciphertext": "4b32bd55eab4f384af9445fbc01ef421b02963060bb2ac746740bc1ab58cc637",
+        "cipherparams": {
+            "iv": "d82adee861dc82faefd3cc90cd444ca8"
+        },
+        "kdf": "scrypt",
+        "kdfparams": {
+            "dklen": 32,
+            "n": 262144,
+            "p": 1,
+            "r": 8,
+            "salt": "2805566ce16420804cc7f25bf614c4b7b3ff6d4ca360a2f6c32641e8c9eb3103"
+        },
+        "mac": "a334b4365cbdde5fc90d8b378e74b2b529fcc0ee1a4eecece50f9a4b784e075c"
+    },
+    "id": "4acd624a-2a27-4ece-a5d9-276c251c3ff3",
+    "version": 3
+}
+
+# 解密函数
+def decrypt_data(encrypted_data, password):
+    kdfparams = encrypted_data["crypto"]["kdfparams"]
+    salt = bytes.fromhex(kdfparams["salt"])
+    iv = bytes.fromhex(encrypted_data["crypto"]["cipherparams"]["iv"])
+    ciphertext = bytes.fromhex(encrypted_data["crypto"]["ciphertext"])
+    mac = bytes.fromhex(encrypted_data["crypto"]["mac"])
+
+    # 使用 scrypt 密钥派生函数
+    derived_key = scrypt(password.encode(), salt, int(kdfparams["n"]), int(kdfparams["r"]), int(kdfparams["p"]), int(kdfparams["dklen"]))
+
+    # 解密数据
+    cipher = AES.new(derived_key[:16], AES.MODE_CTR, iv=iv)
+    decrypted_data = cipher.decrypt(ciphertext)
+
+    # 验证数据完整性
+    if mac == binascii.hexlify(cipher.encrypt(decrypted_data)):
+        decrypted_json = json.loads(decrypted_data)
+        return decrypted_json["address"]
+    else:
+        return None
+
+# 输入您的密码
+password = "YourPasswordHere"
+
+# 解密数据并提取钱包地址
+wallet_address = decrypt_data(encrypted_data, password)
+
+if wallet_address:
+    print("解密成功，钱包地址为:", wallet_address)
+else:
+    print("解密失败，请检查密码是否正确。")
